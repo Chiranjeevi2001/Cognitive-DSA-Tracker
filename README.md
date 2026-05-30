@@ -1,6 +1,23 @@
 # DSA Tracker
 
-Localhost-only NeetCode 150 tracker for one-hour daily practice.
+Cognitive NeetCode 150 tracker for one-hour daily practice.
+
+## Install
+
+Install Node.js and npm first. On this machine, Homebrew Node is available at `/opt/homebrew/Cellar/node/25.8.0/bin`.
+
+From the project folder:
+
+```sh
+cd "/Users/chirabs/Developer/Personal/DSA Tracker"
+env PATH=/opt/homebrew/Cellar/node/25.8.0/bin:/opt/homebrew/bin:/usr/bin:/bin /opt/homebrew/bin/npm install
+```
+
+If your shell already has `node` and `npm` on `PATH`, the normal command is enough:
+
+```sh
+npm install
+```
 
 ## Run
 
@@ -21,6 +38,6 @@ The explicit PATH keeps Vite's native dependency on Homebrew Node in this Codex 
 
 ## Data
 
-The problem list is copied from `/Users/chirabs/Downloads/neetcode150_list.json` into `src/data/neetcode150_list.json`.
+The problem list is copied from `neetcode150_list.json` into `src/data/neetcode150_list.json`.
 
 Progress and notebook entries are stored in `tracker-data/tracker-state.json` through the local `/api/state` endpoint. Browser localStorage is still used as a fallback/cache, and the import/export buttons remain available for manual backups.

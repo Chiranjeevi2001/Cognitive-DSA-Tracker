@@ -256,31 +256,84 @@ a {
   font-size: 22px;
 }
 
-.next-strip {
+.today-plan {
   grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
   border-top: 1px solid #e5ddcf;
   padding-top: 14px;
 }
 
-.next-strip div,
+.today-plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.today-plan-header strong {
+  display: block;
+  font-size: 18px;
+}
+
+.today-plan-header > span {
+  color: #6f756e;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.today-task-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.today-task {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid #e3dacb;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.today-task-main {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.today-task-main .small-label {
+  margin-bottom: 0;
+}
+
+.today-task-main strong {
+  overflow-wrap: anywhere;
+}
+
+.today-task-main small {
+  color: #6f756e;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.today-task-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .problem-name,
 .queue-main,
 .weak-row,
 .upcoming-row {
   display: flex;
   flex-direction: column;
-}
-
-.next-strip strong {
-  font-size: 17px;
-}
-
-.next-strip span:last-child {
-  color: #6f756e;
 }
 
 .workbench {
@@ -651,7 +704,7 @@ a {
   .library-toolbar,
   .problem-title-row,
   .stage-panel,
-  .next-strip {
+  .today-plan-header {
     align-items: stretch;
     flex-direction: column;
   }
@@ -665,8 +718,18 @@ a {
 
   .metric-grid,
   .notebook-grid,
-  .secondary {
+  .secondary,
+  .today-task {
     grid-template-columns: 1fr;
+  }
+
+  .today-task-actions {
+    justify-content: stretch;
+  }
+
+  .today-task-actions .primary-button,
+  .today-task-actions .danger-button {
+    flex: 1;
   }
 
   .stage-date {

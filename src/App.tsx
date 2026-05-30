@@ -145,6 +145,15 @@ function normalizeState(value: Partial<TrackerState> | null | undefined): Tracke
   };
 }
 
+function stateWeight(state: TrackerState): number {
+  return Object.values(state.progress).reduce((weight, progress) => {
+    const notebookWeight = Object.values(progress.notebook ?? {}).filter(Boolean).length;
+    const activeWeight = progress.status !== 'not-started' ? 1 : 0;
+
+    return weight + activeWeight + notebookWeight + progress.history.length;
+  }, 0);
+}
+
 function statusLabel(progress: ProblemProgress, due: boolean): StatusFilter {
   if (progress.status === 'mastered') {
     return 'Mastered';
@@ -199,6 +208,15 @@ function didRetainAfter30Days(progress: ProblemProgress): boolean {
   );
 }
 
+function getStudyStartDate(progress: Record<string, ProblemProgress>): string | undefined {
+  const dates = Object.values(progress).flatMap((problemProgress) => [
+    ...(problemProgress.startedOn ? [problemProgress.startedOn] : []),
+    ...problemProgress.history.filter((event) => event.kind === 'initial').map((event) => event.date),
+  ]);
+
+  return dates.sort()[0];
+}
+
 function App() {
   const [state, setState] = useState<TrackerState>(loadState);
   const [selectedId, setSelectedId] = useState(problems[0]?.id ?? '');
@@ -233,8 +251,12 @@ function App() {
         }
 
         if (payload.exists && payload.state) {
-          setState(normalizeState(payload.state));
-          setStorageMessage('Loaded from file');
+          const fileState = normalizeState(payload.state);
+          const localState = normalizeState(readLocalState());
+          const shouldMigrateLocalState = stateWeight(localState) > stateWeight(fileState);
+
+          setState(shouldMigrateLocalState ? localState : fileState);
+          setStorageMessage(shouldMigrateLocalState ? 'Migrated browser data' : 'Loaded from file');
         } else {
           setStorageMessage('File storage ready');
         }
@@ -328,8 +350,6 @@ function App() {
     [progressByProblem, today],
   );
 
-  const nextNewProblem = progressByProblem.find(({ progress }) => progress.status === 'not-started')?.problem;
-
   const eventsToday = Object.values(state.progress).flatMap((progress) =>
     progress.history.filter((event) => event.date === today),
   );
@@ -338,12 +358,19 @@ function App() {
     (event) => (event.kind === 'review' || event.kind === 'weak') && event.result === 'solved',
   ).length;
 
-  const currentMonth = Math.max(1, Math.floor(Math.max(0, daysBetween(state.settings.startDate, today)) / 30) + 1);
+  const studyStartDate = getStudyStartDate(state.progress);
+  const studyDay = studyStartDate ? Math.max(1, daysBetween(studyStartDate, today) + 1) : 1;
+  const currentMonth = Math.max(1, Math.floor((studyDay - 1) / 30) + 1);
   const targetNew = currentMonth === 1 ? 2 : 1;
   const reviewMinutes = currentMonth === 1 ? 20 : 50;
   const newMinutes = state.settings.dailyMinutes - reviewMinutes;
+  const remainingNewToday = Math.max(0, targetNew - newToday);
   const masteredCount = progressByProblem.filter(({ progress }) => progress.status === 'mastered').length;
   const retained30 = progressByProblem.filter(({ progress }) => didRetainAfter30Days(progress)).length;
+  const dailyNewProblems = progressByProblem
+    .filter(({ progress }) => progress.status === 'not-started')
+    .slice(0, remainingNewToday);
+  const todayTaskCount = dueReviews.length + dailyNewProblems.length;
 
   const filteredProblems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -537,16 +564,50 @@ function App() {
   }
 
   function resetProblem(id: string) {
-    if (!window.confirm('Reset this problem progress and notebook?')) {
+    if (!window.confirm('Reset review progress for this problem? Your notes will be kept.')) {
       return;
     }
 
+    updateProblem(id, (progress) => ({
+      ...defaultProgress(id),
+      notebook: {
+        ...emptyNotebook,
+        ...progress.notebook,
+      },
+    }));
+  }
+
+  function updateStartDateFromImportedData(parsed: Partial<TrackerState>) {
+    const importedState = normalizeState(parsed);
+    const importedStartDate = getStudyStartDate(importedState.progress);
+
+    if (!importedStartDate) {
+      return importedState;
+    }
+
+    return {
+      ...importedState,
+      settings: {
+        ...importedState.settings,
+        startDate: importedStartDate,
+      },
+    };
+  }
+
+  function setImportedState(parsed: Partial<TrackerState>) {
+    const importedState = updateStartDateFromImportedData(parsed);
+
     setState((current) => {
-      const next = { ...current.progress };
-      delete next[id];
+      const next = {
+        ...importedState,
+        settings: {
+          ...current.settings,
+          ...importedState.settings,
+        },
+      };
+
       return {
-        ...current,
-        progress: next,
+        ...next,
       };
     });
   }
@@ -557,16 +618,6 @@ function App() {
       notebook: {
         ...progress.notebook,
         [field]: value,
-      },
-    }));
-  }
-
-  function updateStartDate(event: ChangeEvent<HTMLInputElement>) {
-    setState((current) => ({
-      ...current,
-      settings: {
-        ...current.settings,
-        startDate: event.target.value || todayKey(),
       },
     }));
   }
@@ -589,13 +640,7 @@ function App() {
 
     try {
       const parsed = JSON.parse(await file.text()) as Partial<TrackerState>;
-      setState({
-        settings: {
-          ...defaultSettings(),
-          ...(parsed.settings ?? {}),
-        },
-        progress: parsed.progress ?? {},
-      });
+      setImportedState(parsed);
     } catch {
       window.alert('Could not import that tracker file.');
     } finally {
@@ -622,11 +667,6 @@ function App() {
             <Database size={16} />
             {storageMessage}
           </span>
-          <label className="date-control">
-            <CalendarDays size={16} />
-            <span>Start</span>
-            <input type="date" value={state.settings.startDate} onChange={updateStartDate} />
-          </label>
           <button className="icon-button" type="button" onClick={exportData} title="Export tracker data">
             <Download size={18} />
           </button>
@@ -645,12 +685,12 @@ function App() {
       <main>
         <section className="daily-band">
           <div className="daily-copy">
-            <p className="eyebrow">Month {currentMonth} plan</p>
+            <p className="eyebrow">Study day {studyDay} · Month {currentMonth}</p>
             <h2>{newMinutes} min new work / {reviewMinutes} min review</h2>
             <p>
-              {currentMonth === 1
-                ? 'Two new problems while the review queue is still light.'
-                : 'One new problem, with most of the hour reserved for retention.'}
+              {studyStartDate
+                ? `Started from your first Day 0 solve on ${formatDate(studyStartDate)}.`
+                : 'The study day starts when you complete your first Day 0 solve.'}
             </p>
           </div>
 
@@ -663,26 +703,50 @@ function App() {
             <MetricCard icon={<Flame size={18} />} label="30-day retained" value={`${retained30}/${problems.length}`} />
           </div>
 
-          {nextNewProblem && (
-            <div className="next-strip">
+          <div className="today-plan">
+            <div className="today-plan-header">
               <div>
-                <span className="small-label">Next recommended</span>
-                <strong>{nextNewProblem.title}</strong>
-                <span>{nextNewProblem.category}</span>
+                <span className="small-label">Today&apos;s work</span>
+                <strong>{todayTaskCount === 0 ? 'Done for today' : `${todayTaskCount} problems queued`}</strong>
               </div>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => {
-                  setSelectedId(nextNewProblem.id);
-                  completeInitialSolve(nextNewProblem.id);
-                }}
-              >
-                <Play size={16} />
-                Complete Day 0
-              </button>
+              <span>{newToday + reviewsToday} completed today</span>
             </div>
-          )}
+
+            <div className="today-task-list">
+              {dueReviews.map(({ problem, progress }) => (
+                <TodayTaskItem
+                  key={`review-${problem.id}`}
+                  problem={problem}
+                  label={progress.weak?.active ? 'Weak review' : 'Review'}
+                  detail={getCurrentStage(progress).label}
+                  onSelect={() => setSelectedId(problem.id)}
+                  onPrimary={() => recordNormalSuccess(problem.id)}
+                  primaryLabel="Solved"
+                  onSecondary={() => markWeak(problem.id)}
+                  secondaryLabel="Weak"
+                />
+              ))}
+
+              {dailyNewProblems.map(({ problem }) => (
+                <TodayTaskItem
+                  key={`new-${problem.id}`}
+                  problem={problem}
+                  label="New problem"
+                  detail={`Phase ${problem.phase} · ${problem.category}`}
+                  onSelect={() => setSelectedId(problem.id)}
+                  onPrimary={() => {
+                    setSelectedId(problem.id);
+                    completeInitialSolve(problem.id);
+                  }}
+                  primaryLabel="Complete Day 0"
+                />
+              ))}
+
+              {todayTaskCount === 0 && (
+                <EmptyState icon={<CheckCircle2 size={22} />} text="No scheduled work remains for today." />
+              )}
+            </div>
+          </div>
         </section>
 
         <section className="workbench">
@@ -767,9 +831,14 @@ function App() {
                       )}
                     </>
                   )}
-                  <button type="button" className="ghost-button" onClick={() => resetProblem(selectedProblem.id)}>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => resetProblem(selectedProblem.id)}
+                    title="Reset review progress and keep notebook notes"
+                  >
                     <RotateCcw size={16} />
-                    Reset
+                    Reset Progress
                   </button>
                 </div>
 
@@ -945,6 +1014,49 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
       {icon}
       <span>{text}</span>
     </div>
+  );
+}
+
+function TodayTaskItem({
+  problem,
+  label,
+  detail,
+  onSelect,
+  onPrimary,
+  primaryLabel,
+  onSecondary,
+  secondaryLabel,
+}: {
+  problem: Problem;
+  label: string;
+  detail: string;
+  onSelect: () => void;
+  onPrimary: () => void;
+  primaryLabel: string;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
+}) {
+  return (
+    <article className="today-task">
+      <button type="button" className="today-task-main" onClick={onSelect}>
+        <span className="small-label">{label}</span>
+        <strong>{problem.title}</strong>
+        <small>{detail}</small>
+      </button>
+      <span className={`difficulty ${difficultyClass(problem.difficulty)}`}>{problem.difficulty}</span>
+      <div className="today-task-actions">
+        <button type="button" className="primary-button" onClick={onPrimary}>
+          <CheckCircle2 size={16} />
+          {primaryLabel}
+        </button>
+        {onSecondary && secondaryLabel && (
+          <button type="button" className="danger-button" onClick={onSecondary}>
+            <AlertTriangle size={16} />
+            {secondaryLabel}
+          </button>
+        )}
+      </div>
+    </article>
   );
 }
 
