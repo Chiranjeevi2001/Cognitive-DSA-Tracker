@@ -1,6 +1,6 @@
 # DSA Tracker
 
-Cognitive NeetCode 150 tracker for one-hour daily practice.
+Cognitive NeetCode 150 tracker for one-hour daily practice, designed with spaced-reptition to help you retain the problem pattern recognition for a longer time.
 
 ## Install
 
