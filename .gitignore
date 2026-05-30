@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.npm-cache/
+tracker-data/tracker-state.json
+.DS_Store
+*.log
