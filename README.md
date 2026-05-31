@@ -1,6 +1,6 @@
 # DSA Tracker
 
-Cognitive NeetCode 150 tracker for one-hour daily practice, designed with spaced-reptition to help you retain the problem pattern recognition for a longer time.
+Cognitive NeetCode 150 tracker for one-hour daily practice, designed with spaced repetition to help you retain problem pattern recognition for a longer time.
 
 ## Install
 
@@ -26,6 +26,39 @@ env PATH=/opt/homebrew/Cellar/node/25.8.0/bin:/opt/homebrew/bin:/usr/bin:/bin /o
 ```
 
 Open http://127.0.0.1:5173/.
+
+## Windows
+
+Install Node.js LTS first. If you use Windows Package Manager:
+
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+Restart the terminal after installing Node, then from PowerShell:
+
+```powershell
+cd "C:\path\to\DSA Tracker"
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+From Command Prompt:
+
+```bat
+cd /d "C:\path\to\DSA Tracker"
+npm install
+npm run dev -- --host 127.0.0.1 --port 5173
+```
+
+Open http://127.0.0.1:5173/.
+
+Windows check commands:
+
+```powershell
+npm run lint
+npm run build
+```
 
 ## Checks
 
