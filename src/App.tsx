@@ -32,6 +32,7 @@ import {
 
 const STORAGE_KEY = 'dsa-tracker-state-v1';
 const API_STATE_URL = '/api/state';
+const MAX_DAILY_PROBLEMS = 5;
 
 type Status = 'not-started' | 'reviewing' | 'mastered';
 type StatusFilter = 'All' | 'Not started' | 'Reviewing' | 'Due' | 'Weak' | 'Mastered';
@@ -367,10 +368,14 @@ function App() {
   const remainingNewToday = Math.max(0, targetNew - newToday);
   const masteredCount = progressByProblem.filter(({ progress }) => progress.status === 'mastered').length;
   const retained30 = progressByProblem.filter(({ progress }) => didRetainAfter30Days(progress)).length;
-  const dailyNewProblems = progressByProblem
-    .filter(({ progress }) => progress.status === 'not-started')
-    .slice(0, remainingNewToday);
-  const todayTaskCount = dueReviews.length + dailyNewProblems.length;
+  const availableNewProblems = progressByProblem.filter(({ progress }) => progress.status === 'not-started');
+  const reserveNewSlot = remainingNewToday > 0 && availableNewProblems.length > 0;
+  const maxReviewSlots = Math.max(0, MAX_DAILY_PROBLEMS - (reserveNewSlot ? 1 : 0));
+  const scheduledDueReviews = dueReviews.slice(0, maxReviewSlots);
+  const overflowDueReviews = Math.max(0, dueReviews.length - scheduledDueReviews.length);
+  const remainingDailyCapacity = Math.max(0, MAX_DAILY_PROBLEMS - scheduledDueReviews.length);
+  const dailyNewProblems = availableNewProblems.slice(0, Math.min(remainingNewToday, remainingDailyCapacity));
+  const todayTaskCount = scheduledDueReviews.length + dailyNewProblems.length;
 
   const filteredProblems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -713,7 +718,7 @@ function App() {
             </div>
 
             <div className="today-task-list">
-              {dueReviews.map(({ problem, progress }) => (
+              {scheduledDueReviews.map(({ problem, progress }) => (
                 <TodayTaskItem
                   key={`review-${problem.id}`}
                   problem={problem}
@@ -746,17 +751,21 @@ function App() {
                 <EmptyState icon={<CheckCircle2 size={22} />} text="No scheduled work remains for today." />
               )}
             </div>
+
+            {overflowDueReviews > 0 && (
+              <p className="small-label">{overflowDueReviews} more due review{overflowDueReviews === 1 ? '' : 's'} waiting behind today&apos;s 5-problem cap.</p>
+            )}
           </div>
         </section>
 
         <section className="workbench">
           <aside className="queue-column">
-            <SectionHeader icon={<Timer size={18} />} title="Review Queue" count={dueReviews.length} />
+            <SectionHeader icon={<Timer size={18} />} title="Review Queue" count={scheduledDueReviews.length} />
             <div className="queue-list">
-              {dueReviews.length === 0 ? (
+              {scheduledDueReviews.length === 0 ? (
                 <EmptyState icon={<CheckCircle2 size={22} />} text="No reviews due today." />
               ) : (
-                dueReviews.map(({ problem, progress }) => (
+                scheduledDueReviews.map(({ problem, progress }) => (
                   <QueueItem
                     key={problem.id}
                     problem={problem}
@@ -769,6 +778,9 @@ function App() {
                 ))
               )}
             </div>
+            {overflowDueReviews > 0 && (
+              <p className="small-label">{overflowDueReviews} additional due review{overflowDueReviews === 1 ? '' : 's'} are deferred to keep today within 5 problems.</p>
+            )}
           </aside>
 
           <section className="problem-detail">
