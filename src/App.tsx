@@ -365,16 +365,13 @@ function App() {
   const targetNew = currentMonth === 1 ? 2 : 1;
   const reviewMinutes = currentMonth === 1 ? 20 : 50;
   const newMinutes = state.settings.dailyMinutes - reviewMinutes;
-  const remainingNewToday = Math.max(0, targetNew - newToday);
   const masteredCount = progressByProblem.filter(({ progress }) => progress.status === 'mastered').length;
   const retained30 = progressByProblem.filter(({ progress }) => didRetainAfter30Days(progress)).length;
   const availableNewProblems = progressByProblem.filter(({ progress }) => progress.status === 'not-started');
-  const reserveNewSlot = remainingNewToday > 0 && availableNewProblems.length > 0;
-  const maxReviewSlots = Math.max(0, MAX_DAILY_PROBLEMS - (reserveNewSlot ? 1 : 0));
-  const scheduledDueReviews = dueReviews.slice(0, maxReviewSlots);
+  const scheduledDueReviews = dueReviews.slice(0, MAX_DAILY_PROBLEMS);
   const overflowDueReviews = Math.max(0, dueReviews.length - scheduledDueReviews.length);
   const remainingDailyCapacity = Math.max(0, MAX_DAILY_PROBLEMS - scheduledDueReviews.length);
-  const dailyNewProblems = availableNewProblems.slice(0, Math.min(remainingNewToday, remainingDailyCapacity));
+  const dailyNewProblems = availableNewProblems.slice(0, remainingDailyCapacity);
   const todayTaskCount = scheduledDueReviews.length + dailyNewProblems.length;
 
   const filteredProblems = useMemo(() => {
