@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { categories, problems, type Problem } from './problemData';
+import { countDailySolves } from './activity';
+import { ActivityHeatmap } from './ActivityHeatmap';
 import {
   NORMAL_STAGES,
   WEAK_STAGES,
@@ -229,6 +231,7 @@ function App() {
   const importRef = useRef<HTMLInputElement>(null);
 
   const today = todayKey();
+  const dailySolves = useMemo(() => countDailySolves(state.progress), [state.progress]);
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -685,6 +688,7 @@ function App() {
       </header>
 
       <main>
+        <ActivityHeatmap counts={dailySolves} today={today} />
         <section className="daily-band">
           <div className="daily-copy">
             <p className="eyebrow">Study day {studyDay} · Month {currentMonth}</p>
